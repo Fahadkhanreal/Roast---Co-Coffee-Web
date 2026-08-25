@@ -17,6 +17,7 @@ export function DashboardView() {
       totalRevenue: string;
       totalOrders: number;
       totalCustomers: number;
+      pendingOrders: number;
     };
     recentOrders: Array<{
       id: string;
@@ -25,6 +26,14 @@ export function DashboardView() {
       total: number;
       status: string;
       time: string;
+    }>;
+    chartData: Array<{
+      day: string;
+      total: number;
+    }>;
+    popularProducts: Array<{
+      name: string;
+      sales: number;
     }>;
   } | null>(null);
 
