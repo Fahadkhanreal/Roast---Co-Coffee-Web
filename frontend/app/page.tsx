@@ -169,7 +169,7 @@ function Shop({ categories, loading }: { categories: Category[]; loading: boolea
             <p style={{ color: '#6b5548', fontSize: '18px' }}>No products available at the moment.</p>
           </div>
         ) : (
-          <>
+          <div id="menu-section">
             {displayedCategories.map((category) => (
               <section
                 key={category.id}
@@ -197,7 +197,7 @@ function Shop({ categories, loading }: { categories: Category[]; loading: boolea
             {displayedCategories.length < categories.length && (
               <div ref={loadMoreRef} style={{ height: '100px' }} />
             )}
-          </>
+          </div>
         )}
       </main>
 

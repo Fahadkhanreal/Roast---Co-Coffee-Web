@@ -122,7 +122,21 @@ export function HeroSlider() {
                   {image.label && <span className="hero-label">{image.label}</span>}
                   {image.title && <h1 className="hero-headline">{image.title}</h1>}
                   {image.subtitle && <p className="hero-desc">{image.subtitle}</p>}
-                  <button className="hero-cta">
+                  <button
+                    className="hero-cta"
+                    onClick={() => {
+                      const menuSection = document.getElementById('menu-section');
+                      if (menuSection) {
+                        menuSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      } else {
+                        // Fallback: scroll to first category
+                        const firstCategory = document.querySelector('.category-section');
+                        if (firstCategory) {
+                          firstCategory.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }
+                      }
+                    }}
+                  >
                     Explore Menu <ArrowRightIcon size={18} />
                   </button>
                 </div>
@@ -145,7 +159,21 @@ export function HeroSlider() {
                 <span className="hero-label">{slide.label}</span>
                 <h1 className="hero-headline">{slide.headline}</h1>
                 <p className="hero-desc">{slide.description}</p>
-                <button className="hero-cta">
+                <button
+                  className="hero-cta"
+                  onClick={() => {
+                    const menuSection = document.getElementById('menu-section');
+                    if (menuSection) {
+                      menuSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    } else {
+                      // Fallback: scroll to first category
+                      const firstCategory = document.querySelector('.category-section');
+                      if (firstCategory) {
+                        firstCategory.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      }
+                    }
+                  }}
+                >
                   Explore Menu <ArrowRightIcon size={18} />
                 </button>
               </div>

@@ -91,6 +91,21 @@ We apologize for the inconvenience.
  * Open WhatsApp in new window/tab
  */
 export function sendWhatsAppMessage(phone: string, orderNumber: string, status: OrderStatus): void {
-  const link = getWhatsAppLink(phone, orderNumber, status);
-  window.open(link, '_blank');
+  try {
+    const link = getWhatsAppLink(phone, orderNumber, status);
+    console.log('Opening WhatsApp link:', link);
+
+    // Open in new window/tab
+    const newWindow = window.open(link, '_blank', 'noopener,noreferrer');
+
+    // Check if popup was blocked
+    if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
+      // Fallback: Try direct navigation
+      console.warn('Popup blocked, trying direct navigation');
+      window.location.href = link;
+    }
+  } catch (error) {
+    console.error('Failed to open WhatsApp:', error);
+    alert('Failed to open WhatsApp. Please check the phone number.');
+  }
 }
