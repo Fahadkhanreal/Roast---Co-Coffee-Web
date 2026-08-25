@@ -4,11 +4,20 @@ import { verifyPassword } from '@/lib/password';
 import { generateCSRFToken, verifyCSRFToken } from '@/lib/csrf';
 import { createSession, setSessionCookie } from '@/lib/session';
 
-// GET - Generate CSRF token for login form
+// GET - Generate CSRF token for login form (always fresh, never cached)
 export async function GET(request: NextRequest) {
   try {
     const csrfToken = generateCSRFToken();
-    return NextResponse.json({ csrfToken });
+
+    // Create response with no-cache headers (Safari iOS fix)
+    const response = NextResponse.json({ csrfToken });
+
+    // Prevent caching - force fresh token every time
+    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    response.headers.set('Pragma', 'no-cache');
+    response.headers.set('Expires', '0');
+
+    return response;
   } catch (error) {
     console.error('CSRF token generation error:', error);
     return NextResponse.json(

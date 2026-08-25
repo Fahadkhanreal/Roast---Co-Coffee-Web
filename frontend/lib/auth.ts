@@ -89,16 +89,39 @@ export async function getAdminUser(): Promise<{ id: string; email: string } | nu
 }
 
 /**
- * Logout - clear session cookie
+ * Logout - clear session cookie and all cached data
+ * Safari iOS fix: Force clear all cookies client-side
  */
 export async function logout(): Promise<void> {
   try {
+    // Clear server-side session
     await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
-    // Redirect to login
+
+    // Force clear all cookies client-side (Safari iOS fix)
     if (typeof window !== 'undefined') {
-      window.location.href = '/admin/login';
+      // Clear all cookies
+      document.cookie.split(";").forEach((c) => {
+        const cookieName = c.trim().split("=")[0];
+        // Clear for current domain
+        document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+        // Clear for parent domain
+        document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${window.location.hostname};`;
+      });
+
+      // Clear any cached storage
+      localStorage.clear();
+      sessionStorage.clear();
+
+      console.log('✅ All cookies and cache cleared');
+
+      // Redirect to login with cache-bust parameter
+      window.location.href = `/admin/login?t=${Date.now()}`;
     }
   } catch (error) {
     console.error('Logout error:', error);
+    // Force redirect even on error
+    if (typeof window !== 'undefined') {
+      window.location.href = '/admin/login';
+    }
   }
 }

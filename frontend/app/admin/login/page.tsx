@@ -15,14 +15,22 @@ export default function AdminLoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
-  // Fetch CSRF token on page load
+  // Fetch CSRF token on page load (always fresh, cache-busted)
   useEffect(() => {
     const fetchCSRFToken = async () => {
       try {
-        const response = await fetch('/api/auth/login');
+        // Add timestamp to prevent Safari caching (cache-busting)
+        const response = await fetch(`/api/auth/login?t=${Date.now()}`, {
+          cache: 'no-store', // Force no cache
+          headers: {
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
+          }
+        });
         const data = await response.json();
         if (data.csrfToken) {
           setCsrfToken(data.csrfToken);
+          console.log('✅ Fresh CSRF token loaded');
         }
       } catch (error) {
         console.error('Failed to fetch CSRF token:', error);

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { PlusIcon, EditIcon, TrashIcon } from "./icons";
 import Image from "next/image";
 import { clearProductsCache } from "@/lib/cache-manager";
+import { compressImage } from "@/lib/image-compression";
 
 type Product = {
   id: string;
@@ -454,15 +455,28 @@ function ProductFormSlideOver({
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>(product?.image || "");
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      setImageFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      try {
+        // Show loading indicator
+        console.log('🔵 Compressing image...');
+
+        // Compress image before upload (max 2MB)
+        const compressedFile = await compressImage(file, 2);
+
+        setImageFile(compressedFile);
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setImagePreview(reader.result as string);
+        };
+        reader.readAsDataURL(compressedFile);
+
+        console.log('✅ Image ready for upload');
+      } catch (error) {
+        console.error('❌ Image compression failed:', error);
+        alert('Failed to process image. Please try a different image.');
+      }
     }
   };
 
