@@ -12,7 +12,7 @@ type TopbarProps = {
 };
 
 export function Topbar({ title, onMenuToggle }: TopbarProps) {
-  const [adminUser, setAdminUser] = useState<{ id: string; email: string } | null>(null);
+  const [adminUser, setAdminUser] = useState<{ id: string; email: string; name?: string } | null>(null);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchFocused, setSearchFocused] = useState(false);

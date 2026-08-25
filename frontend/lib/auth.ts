@@ -45,7 +45,7 @@ export async function requireAuth(request: NextRequest): Promise<NextResponse | 
  */
 export async function checkAdminAuth(request: NextRequest): Promise<boolean> {
   const auth = await requireAuth(request);
-  return !('error' in auth);
+  return auth === null; // null means success (no error response)
 }
 
 /**

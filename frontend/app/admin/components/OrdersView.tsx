@@ -214,9 +214,9 @@ export function OrdersView({ onOrderUpdate }: OrdersViewProps = {}) {
                   <td>
                     <span
                       className={`badge ${
-                        order.status === "completed"
+                        order.status === "delivered"
                           ? "badge-green"
-                          : order.status === "processing"
+                          : order.status === "preparing"
                           ? "badge-blue"
                           : "badge-amber"
                       }`}

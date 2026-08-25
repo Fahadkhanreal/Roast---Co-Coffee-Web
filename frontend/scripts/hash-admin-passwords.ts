@@ -1,5 +1,5 @@
-import { hashPassword } from '../lib/password.ts';
-import { supabaseAdmin } from '../lib/supabase.ts';
+import { hashPassword } from '../lib/password';
+import { supabaseAdmin } from '../lib/supabase';
 
 /**
  * One-time migration script to hash existing plain text admin passwords

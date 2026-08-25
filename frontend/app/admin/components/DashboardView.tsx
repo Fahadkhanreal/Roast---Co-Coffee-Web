@@ -12,7 +12,21 @@ import {
 
 export function DashboardView() {
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState<any>(null);
+  const [stats, setStats] = useState<{
+    stats: {
+      totalRevenue: string;
+      totalOrders: number;
+      totalCustomers: number;
+    };
+    recentOrders: Array<{
+      id: string;
+      customer: string;
+      items: number;
+      total: number;
+      status: string;
+      time: string;
+    }>;
+  } | null>(null);
 
   useEffect(() => {
     fetchDashboardStats();
@@ -253,9 +267,9 @@ export function DashboardView() {
                   <td>
                     <span
                       className={`badge ${
-                        order.status === "completed"
+                        order.status === "delivered"
                           ? "badge-green"
-                          : order.status === "processing"
+                          : order.status === "preparing"
                           ? "badge-blue"
                           : "badge-amber"
                       }`}

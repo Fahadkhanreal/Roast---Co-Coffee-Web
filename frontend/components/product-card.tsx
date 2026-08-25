@@ -58,7 +58,7 @@ export const ProductCard = memo(function ProductCard({
         {hasImage ? (
           <>
             <Image
-              src={product.image}
+              src={product.image || '/placeholder.png'}
               alt={product.name}
               fill
               style={{ objectFit: 'cover' }}

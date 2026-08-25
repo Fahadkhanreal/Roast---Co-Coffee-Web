@@ -46,7 +46,7 @@ export async function GET() {
 // PUT - Update settings
 export async function PUT(request: NextRequest) {
   const authError = await requireAuth(request);
-  if ('error' in authError) return authError.error;
+  if (authError) return authError;
 
   try {
     if (!supabaseAdmin) {
