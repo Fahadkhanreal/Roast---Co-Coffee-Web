@@ -1,0 +1,26 @@
+{
+  "name": "Roast & Co.",
+  "short_name": "Roast&Co",
+  "description": "Premium Coffee Shop in Clifton, Karachi",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FBF5EA",
+  "theme_color": "#C08552",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/apple-icon.svg",
+      "sizes": "180x180",
+      "type": "image/svg+xml"
+    }
+  ],
+  "categories": ["food", "shopping"],
+  "lang": "en-PK",
+  "dir": "ltr"
+}
