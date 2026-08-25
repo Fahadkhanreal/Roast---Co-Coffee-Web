@@ -7,7 +7,7 @@ export async function POST(request: NextRequest) {
 
     if (sessionId) {
       // Destroy session server-side
-      destroySession(sessionId);
+      await destroySession(sessionId);
     }
 
     // Create response

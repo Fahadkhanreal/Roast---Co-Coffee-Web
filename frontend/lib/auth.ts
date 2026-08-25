@@ -17,7 +17,7 @@ export async function requireAuth(request: NextRequest): Promise<NextResponse | 
       );
     }
 
-    const session = verifySession(sessionId);
+    const session = await verifySession(sessionId);
 
     if (!session) {
       return NextResponse.json(

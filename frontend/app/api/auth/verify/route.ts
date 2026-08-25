@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const session = verifySession(sessionId);
+    const session = await verifySession(sessionId);
 
     if (!session) {
       return NextResponse.json(

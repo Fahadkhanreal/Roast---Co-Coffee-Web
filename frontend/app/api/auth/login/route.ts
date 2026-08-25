@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create session
-    const sessionId = createSession(adminUser.id, adminUser.email);
+    const sessionId = await createSession(adminUser.id, adminUser.email);
 
     // Create response
     const response = NextResponse.json({

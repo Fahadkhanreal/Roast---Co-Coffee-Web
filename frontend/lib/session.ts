@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { supabaseAdmin } from './supabase';
 
 const SESSION_COOKIE_NAME = 'admin_session';
 const SESSION_DURATION = 24 * 60 * 60 * 1000; // 24 hours
@@ -9,48 +10,92 @@ interface AdminSession {
   createdAt: number;
 }
 
-// In-memory session store (use Redis in production)
-const sessions: { [key: string]: AdminSession } = {};
-
 /**
- * Create a new admin session
+ * Create a new admin session (database-backed for serverless)
  */
-export function createSession(adminId: string, email: string): string {
+export async function createSession(adminId: string, email: string): Promise<string> {
   const sessionId = require('crypto').randomBytes(32).toString('hex');
-  const session: AdminSession = {
-    id: adminId,
-    email: email,
-    createdAt: Date.now(),
-  };
+  const expiresAt = new Date(Date.now() + SESSION_DURATION);
 
-  sessions[sessionId] = session;
+  if (!supabaseAdmin) {
+    throw new Error('Database not configured');
+  }
+
+  // Store session in database
+  const { error } = await supabaseAdmin
+    .from('admin_sessions')
+    .insert({
+      id: sessionId,
+      admin_id: adminId,
+      email: email,
+      expires_at: expiresAt.toISOString(),
+    });
+
+  if (error) {
+    console.error('Failed to create session:', error);
+    throw new Error('Failed to create session');
+  }
+
   return sessionId;
 }
 
 /**
- * Verify session exists and is valid
+ * Verify session exists and is valid (database lookup)
  */
-export function verifySession(sessionId: string): AdminSession | null {
-  if (!sessionId || !sessions[sessionId]) {
+export async function verifySession(sessionId: string): Promise<AdminSession | null> {
+  if (!sessionId || !supabaseAdmin) {
     return null;
   }
 
-  const session = sessions[sessionId];
+  // Get session from database
+  const { data: session, error } = await supabaseAdmin
+    .from('admin_sessions')
+    .select('id, admin_id, email, expires_at, last_accessed')
+    .eq('id', sessionId)
+    .single();
 
-  // Check if session expired (24 hours)
-  if (Date.now() - session.createdAt > SESSION_DURATION) {
-    delete sessions[sessionId];
+  if (error || !session) {
     return null;
   }
 
-  return session;
+  // Check if session expired
+  const now = new Date();
+  const expiresAt = new Date(session.expires_at);
+
+  if (now > expiresAt) {
+    // Delete expired session
+    await supabaseAdmin
+      .from('admin_sessions')
+      .delete()
+      .eq('id', sessionId);
+    return null;
+  }
+
+  // Update last accessed time
+  await supabaseAdmin
+    .from('admin_sessions')
+    .update({ last_accessed: now.toISOString() })
+    .eq('id', sessionId);
+
+  return {
+    id: session.admin_id.toString(),
+    email: session.email,
+    createdAt: new Date(session.last_accessed).getTime(),
+  };
 }
 
 /**
- * Destroy session
+ * Destroy session (delete from database)
  */
-export function destroySession(sessionId: string): void {
-  delete sessions[sessionId];
+export async function destroySession(sessionId: string): Promise<void> {
+  if (!supabaseAdmin) {
+    return;
+  }
+
+  await supabaseAdmin
+    .from('admin_sessions')
+    .delete()
+    .eq('id', sessionId);
 }
 
 /**
@@ -61,9 +106,9 @@ export function setSessionCookie(response: NextResponse, sessionId: string): voi
     name: SESSION_COOKIE_NAME,
     value: sessionId,
     httpOnly: true, // NOT accessible from JavaScript
-    secure: true, // Only sent over HTTPS
+    secure: process.env.NODE_ENV === 'production', // Only HTTPS in production
     sameSite: 'strict', // CSRF protection
-    maxAge: SESSION_DURATION, // 24 hours
+    maxAge: SESSION_DURATION / 1000, // Convert to seconds
     path: '/', // Available site-wide
   });
 }
@@ -83,14 +128,25 @@ export function getSessionFromRequest(request: NextRequest): string | undefined 
 }
 
 /**
- * Cleanup expired sessions every 30 minutes
+ * Cleanup expired sessions (call this periodically via cron or API route)
  */
-setInterval(() => {
-  const now = Date.now();
-  for (const sessionId in sessions) {
-    const session = sessions[sessionId];
-    if (now - session.createdAt > SESSION_DURATION) {
-      delete sessions[sessionId];
-    }
+export async function cleanupExpiredSessions(): Promise<number> {
+  if (!supabaseAdmin) {
+    return 0;
   }
-}, 30 * 60 * 1000);
+
+  const now = new Date().toISOString();
+
+  const { data, error } = await supabaseAdmin
+    .from('admin_sessions')
+    .delete()
+    .lt('expires_at', now)
+    .select();
+
+  if (error) {
+    console.error('Failed to cleanup sessions:', error);
+    return 0;
+  }
+
+  return data?.length || 0;
+}
