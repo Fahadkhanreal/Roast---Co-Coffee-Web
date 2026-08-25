@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { writeFile } from "fs/promises";
-import path from "path";
+import { supabaseAdmin } from "@/lib/supabase";
 
 export async function POST(request: NextRequest) {
   try {
+    if (!supabaseAdmin) {
+      return NextResponse.json(
+        { error: "Storage not configured" },
+        { status: 500 }
+      );
+    }
+
     const formData = await request.formData();
     const file = formData.get("image") as File;
 
@@ -11,32 +17,64 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No image provided" }, { status: 400 });
     }
 
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
+    // Validate file type
+    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+    if (!allowedTypes.includes(file.type)) {
+      return NextResponse.json(
+        { error: "Invalid file type. Only JPEG, PNG, and WebP are allowed." },
+        { status: 400 }
+      );
+    }
+
+    // Validate file size (max 5MB)
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    if (file.size > maxSize) {
+      return NextResponse.json(
+        { error: "File too large. Maximum size is 5MB." },
+        { status: 400 }
+      );
+    }
 
     // Generate unique filename
     const timestamp = Date.now();
-    const originalName = file.name.replace(/\s+/g, "-");
-    const fileExt = originalName.split(".").pop();
-    const fileName = `product-${timestamp}.${fileExt}`;
+    const randomStr = Math.random().toString(36).substring(2, 8);
+    const fileExt = file.name.split(".").pop()?.toLowerCase() || "jpg";
+    const fileName = `product-${timestamp}-${randomStr}.${fileExt}`;
 
-    // Save to public/uploads/products/
-    const uploadDir = path.join(process.cwd(), "public", "uploads", "products");
-    const uploadPath = path.join(uploadDir, fileName);
+    // Convert file to buffer
+    const bytes = await file.arrayBuffer();
+    const buffer = Buffer.from(bytes);
 
-    // Create directory if it doesn't exist
-    const fs = require("fs");
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
+    // Upload to Supabase Storage
+    const { data, error } = await supabaseAdmin.storage
+      .from("products")
+      .upload(fileName, buffer, {
+        contentType: file.type,
+        cacheControl: "3600",
+        upsert: false,
+      });
+
+    if (error) {
+      console.error("Supabase upload error:", error);
+      return NextResponse.json(
+        { error: "Failed to upload image to storage" },
+        { status: 500 }
+      );
     }
 
-    await writeFile(uploadPath, buffer);
+    // Get public URL
+    const { data: urlData } = supabaseAdmin.storage
+      .from("products")
+      .getPublicUrl(fileName);
 
-    const imageUrl = `/uploads/products/${fileName}`;
+    const imageUrl = urlData.publicUrl;
 
     return NextResponse.json({ imageUrl }, { status: 200 });
   } catch (error) {
     console.error("Image upload error:", error);
-    return NextResponse.json({ error: "Image upload failed" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Image upload failed" },
+      { status: 500 }
+    );
   }
 }
