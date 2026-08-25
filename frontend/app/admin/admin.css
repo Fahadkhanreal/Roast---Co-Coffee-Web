@@ -1131,13 +1131,26 @@ textarea {
     max-width: 100vw !important;
     height: auto !important;
     max-height: 85vh !important;
+    margin: 0 !important;
     border-radius: 20px 20px 0 0 !important;
-    animation: slideUpFromBottom 0.3s ease !important;
+    animation: slideUpFromBottom 0.3s ease forwards !important;
     z-index: 10000 !important;
     box-shadow: 0 -10px 40px rgba(43, 24, 16, 0.4) !important;
     display: flex !important;
     flex-direction: column !important;
     overflow: hidden !important;
+    transform: translateY(0) !important; /* Override any inherited transforms */
+  }
+
+  /* Force override any parent positioning */
+  .notifications-wrapper {
+    position: relative !important;
+  }
+
+  .notifications-wrapper .notifications-dropdown {
+    position: fixed !important;
+    top: auto !important;
+    bottom: 0 !important;
   }
 
   @keyframes slideUpFromBottom {

@@ -107,8 +107,30 @@ export function NotificationsDropdown({ isOpen, onClose }: NotificationsDropdown
 
   if (!isOpen) return null;
 
+  // Detect mobile for Safari iOS fix
+  const isMobile = typeof window !== 'undefined' && window.innerWidth <= 640;
+
   return (
-    <div ref={dropdownRef} className="notifications-dropdown">
+    <div
+      ref={dropdownRef}
+      className="notifications-dropdown"
+      style={isMobile ? {
+        position: 'fixed',
+        top: 'auto',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        width: '100vw',
+        maxWidth: '100vw',
+        maxHeight: '85vh',
+        zIndex: 10000,
+        borderRadius: '20px 20px 0 0',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+        background: 'var(--surface)',
+      } : undefined}
+    >
       <div className="notifications-header">
         <h3>Notifications</h3>
         {unreadCount > 0 && (
