@@ -33,7 +33,7 @@ export function DashboardView() {
     }>;
     popularProducts: Array<{
       name: string;
-      sales: number;
+      count: number;
     }>;
   } | null>(null);
 
