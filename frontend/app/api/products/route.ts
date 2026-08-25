@@ -134,7 +134,10 @@ export async function POST(request: NextRequest) {
     }
 
     console.log("✅ Product created successfully:", product);
-    return NextResponse.json({ product }, { status: 201 });
+    return NextResponse.json({
+      product,
+      cacheInvalidated: true // Signal to clear client cache
+    }, { status: 201 });
   } catch (error) {
     console.error('❌ Products POST error:', error);
     return NextResponse.json(

@@ -19,11 +19,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get total revenue (sum of all completed orders)
+    // Get total revenue (sum of all delivered orders)
     const { data: revenueData } = await supabaseAdmin
       .from('orders')
       .select('total')
-      .eq('status', 'completed');
+      .eq('status', 'delivered');
 
     const totalRevenue = revenueData?.reduce((sum, order) => sum + parseFloat(order.total), 0) || 0;
 

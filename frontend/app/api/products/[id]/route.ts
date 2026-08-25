@@ -89,7 +89,11 @@ export async function PUT(
       );
     }
 
-    return NextResponse.json({ product });
+    // Return success with cache invalidation flag
+    return NextResponse.json({
+      product,
+      cacheInvalidated: true // Signal to clear client cache
+    });
   } catch (error) {
     console.error('Product PUT error:', error);
     return NextResponse.json(
@@ -127,7 +131,11 @@ export async function DELETE(
       );
     }
 
-    return NextResponse.json({ message: 'Product deleted successfully' });
+    // Return success with cache invalidation flag
+    return NextResponse.json({
+      message: 'Product deleted successfully',
+      cacheInvalidated: true // Signal to clear client cache
+    });
   } catch (error) {
     console.error('Product DELETE error:', error);
     return NextResponse.json(

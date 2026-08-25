@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { isValidStatusTransition, OrderStatus } from '@/lib/order-state-machine';
 import { requireAuth } from '@/lib/auth';
+import { clearAllDashboardCache } from '@/lib/dashboard-cache';
 
 /**
  * PATCH /api/orders/[id] - Update order status with state machine validation
@@ -75,6 +76,9 @@ export async function PATCH(
         { status: 500 }
       );
     }
+
+    // Clear dashboard cache so revenue updates immediately
+    clearAllDashboardCache();
 
     return NextResponse.json({ order: updatedOrder });
   } catch (error) {
