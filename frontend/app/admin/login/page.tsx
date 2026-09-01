@@ -11,40 +11,46 @@ export default function AdminLoginPage() {
   const [password, setPassword] = useState("");
   const [csrfToken, setCsrfToken] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [showError, setShowError] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
-  // Fetch CSRF token on page load (always fresh, cache-busted)
-  useEffect(() => {
-    const fetchCSRFToken = async () => {
-      try {
-        // Add timestamp to prevent Safari caching (cache-busting)
-        const response = await fetch(`/api/auth/login?t=${Date.now()}`, {
-          cache: 'no-store', // Force no cache
-          headers: {
-            'Cache-Control': 'no-cache',
-            'Pragma': 'no-cache'
-          }
-        });
-        const data = await response.json();
-        if (data.csrfToken) {
-          setCsrfToken(data.csrfToken);
-          console.log('✅ Fresh CSRF token loaded');
+  const fetchCSRFToken = async () => {
+    try {
+      const response = await fetch(`/api/auth/login?t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
         }
-      } catch (error) {
-        console.error('Failed to fetch CSRF token:', error);
+      });
+      const data = await response.json();
+      if (data.csrfToken) {
+        setCsrfToken(data.csrfToken);
+        return data.csrfToken;
       }
-    };
+    } catch (error) {
+      console.error('Failed to fetch CSRF token:', error);
+    }
+    return "";
+  };
+
+  // Fetch CSRF token on page load
+  useEffect(() => {
     fetchCSRFToken();
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setShowError(false);
+    setErrorMessage("");
     setIsLoading(true);
 
     try {
+      let activeToken = csrfToken;
+      if (!activeToken) {
+        activeToken = await fetchCSRFToken();
+      }
+
       // Call login API with CSRF token
       const response = await fetch('/api/auth/login', {
         method: 'POST',
@@ -52,29 +58,30 @@ export default function AdminLoginPage() {
           'Content-Type': 'application/json',
         },
         credentials: 'include', // Send/receive secure cookies
-        body: JSON.stringify({ email, password, csrfToken }),
+        body: JSON.stringify({ email: email.trim(), password, csrfToken: activeToken }),
       });
 
       const data = await response.json();
 
       if (response.ok && data.success) {
-        // Session stored in secure httpOnly cookie (browser handles automatically)
-        // No need for localStorage anymore
         setIsSuccess(true);
         setIsLoading(false);
 
         // Redirect to admin dashboard after brief success state
         setTimeout(() => {
           router.push("/admin");
-        }, 600);
+        }, 500);
       } else {
         setIsLoading(false);
-        setShowError(true);
+        setErrorMessage(data.error || "Incorrect email or password. Please try again.");
+        // Fetch a fresh CSRF token for the next attempt
+        fetchCSRFToken();
       }
     } catch (error) {
       console.error('Login error:', error);
       setIsLoading(false);
-      setShowError(true);
+      setErrorMessage("Network error. Please try again.");
+      fetchCSRFToken();
     }
   };
 
@@ -102,14 +109,14 @@ export default function AdminLoginPage() {
         </p>
 
         {/* Error Banner */}
-        {showError && (
+        {errorMessage && (
           <div className="login-error">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="12" cy="12" r="10" />
               <line x1="12" y1="8" x2="12" y2="12" />
               <line x1="12" y1="16" x2="12.01" y2="16" />
             </svg>
-            <span>Incorrect email or password. Please try again.</span>
+            <span>{errorMessage}</span>
           </div>
         )}
 

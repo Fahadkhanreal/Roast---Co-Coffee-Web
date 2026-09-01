@@ -56,11 +56,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Query admin user from database
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // Query admin user from database (case-insensitive)
     const { data: adminUser, error } = await supabaseAdmin
       .from('admin_users')
       .select('*')
-      .eq('email', email)
+      .ilike('email', normalizedEmail)
       .single();
 
     if (error || !adminUser) {

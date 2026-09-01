@@ -234,51 +234,56 @@ export default function Home() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch products from API with optimizations
+  // Fetch products from API with Stale-While-Revalidate
   useEffect(() => {
     fetchProducts();
+
+    // Re-fetch products when cache is cleared (e.g., product added in Admin)
+    const handleCacheCleared = () => {
+      fetchProducts(true);
+    };
+
+    window.addEventListener('roast_products_cache_cleared', handleCacheCleared);
+    window.addEventListener('roast_cache_cleared', handleCacheCleared);
+    window.addEventListener('storage', handleCacheCleared);
+
+    return () => {
+      window.removeEventListener('roast_products_cache_cleared', handleCacheCleared);
+      window.removeEventListener('roast_cache_cleared', handleCacheCleared);
+      window.removeEventListener('storage', handleCacheCleared);
+    };
   }, []);
 
-  const fetchProducts = async () => {
+  const fetchProducts = async (forceFresh = false) => {
     try {
-      setLoading(true);
-
-      // 1. Check cache first (5 minute cache)
-      const cachedProducts = typeof window !== 'undefined' ? localStorage.getItem('products_cache') : null;
-      const cacheTimestamp = typeof window !== 'undefined' ? localStorage.getItem('products_cache_time') : null;
-
-      if (cachedProducts && cacheTimestamp) {
-        const cacheAge = Date.now() - parseInt(cacheTimestamp);
-        // Use cache if less than 5 minutes old
-        if (cacheAge < 5 * 60 * 1000) {
-          console.log('✅ Using cached products (faster load!)');
-          await processProducts(JSON.parse(cachedProducts));
-          setLoading(false);
-
-          // Background refresh to check for updates
-          fetch('/api/products')
-            .then(r => r.json())
-            .then(data => {
-              if (data.products && data.products.length !== JSON.parse(cachedProducts).length) {
-                // Product count changed - invalidate cache
-                localStorage.removeItem('products_cache');
-                localStorage.removeItem('products_cache_time');
-                console.log('🔄 Cache invalidated - product count changed');
-              }
-            })
-            .catch(() => {});
-
-          return;
+      // 1. If cached products exist, load them immediately for instant UI render (Stale)
+      if (!forceFresh && typeof window !== 'undefined') {
+        const cachedProducts = localStorage.getItem('products_cache');
+        if (cachedProducts) {
+          try {
+            const parsed = JSON.parse(cachedProducts);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              await processProducts(parsed);
+              setLoading(false);
+            }
+          } catch {
+            localStorage.removeItem('products_cache');
+          }
         }
       }
 
-      // 2. Fetch from API
-      console.log('🔵 Fetching fresh products from API');
-      const response = await fetch('/api/products');
+      // 2. Always fetch fresh products from API in background (Revalidate)
+      const response = await fetch(`/api/products?t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache',
+        }
+      });
       const data = await response.json();
 
       if (response.ok && data.products) {
-        // 3. Save to cache (5 minutes)
+        // Save fresh data to cache
         if (typeof window !== 'undefined') {
           localStorage.setItem('products_cache', JSON.stringify(data.products));
           localStorage.setItem('products_cache_time', Date.now().toString());
@@ -288,7 +293,6 @@ export default function Home() {
       }
     } catch (error) {
       console.error('❌ Error fetching products:', error);
-      setCategories([]);
     } finally {
       setLoading(false);
     }
@@ -298,7 +302,9 @@ export default function Home() {
     // Fetch categories from database to get proper ordering
     let dbCategories: any[] = [];
     try {
-      const catResponse = await fetch('/api/categories');
+      const catResponse = await fetch(`/api/categories?t=${Date.now()}`, {
+        cache: 'no-store'
+      });
       const catData = await catResponse.json();
       if (catResponse.ok && catData.categories) {
         // Filter only active categories and sort by display_order
@@ -310,20 +316,23 @@ export default function Home() {
       console.error('Failed to fetch categories:', error);
     }
 
-    // Group products by category
+    // Group products by category (case-insensitive lookup key)
     const productsByCategory: { [key: string]: any[] } = {};
 
     products.forEach((p: any) => {
-      if (p.stock > 0) {
-        if (!productsByCategory[p.category]) {
-          productsByCategory[p.category] = [];
+      // Show product if stock is not strictly 0 (defaults to in stock)
+      const inStock = p.stock === undefined || p.stock === null || p.stock > 0;
+      if (inStock) {
+        const catName = p.category ? p.category.trim() : 'Other';
+        if (!productsByCategory[catName]) {
+          productsByCategory[catName] = [];
         }
-        productsByCategory[p.category].push({
+        productsByCategory[catName].push({
           id: p.id,
           name: p.name,
           description: p.description || `Delicious ${p.name}`,
           price: parseFloat(p.price),
-          art: categoryArtMap[p.category] || 'espresso',
+          art: categoryArtMap[catName] || 'espresso',
           badge: p.featured ? 'Popular' : undefined,
           image: p.image,
         });
@@ -332,33 +341,45 @@ export default function Home() {
 
     // Build categories array using database order
     const categoriesArray: Category[] = [];
+    const usedCategoryNames = new Set<string>();
 
     if (dbCategories.length > 0) {
       // Use database categories with custom ordering
       dbCategories.forEach((dbCat: any, index: number) => {
-        const categoryProducts = productsByCategory[dbCat.name] || [];
+        // Find matching products by name (case-insensitive match)
+        const matchingKey = Object.keys(productsByCategory).find(
+          (key) => key.toLowerCase() === dbCat.name.toLowerCase()
+        );
+        const categoryProducts = matchingKey ? productsByCategory[matchingKey] : [];
+
+        if (matchingKey) {
+          usedCategoryNames.add(matchingKey);
+        }
+
         if (categoryProducts.length > 0) {
           categoriesArray.push({
-            id: dbCat.slug,
-            num: `0${index + 1}`,
+            id: dbCat.slug || dbCat.name.toLowerCase().replace(/\s+/g, '-'),
+            num: `0${categoriesArray.length + 1}`,
             name: dbCat.name,
             tagline: dbCat.description || `Explore our ${dbCat.name.toLowerCase()} collection`,
             products: categoryProducts,
           });
         }
       });
-    } else {
-      // Fallback: use all categories without custom ordering
-      Object.entries(productsByCategory).forEach(([name, categoryProducts], index) => {
+    }
+
+    // Append any products from categories not in dbCategories so they are NEVER lost
+    Object.entries(productsByCategory).forEach(([name, categoryProducts]) => {
+      if (!usedCategoryNames.has(name) && categoryProducts.length > 0) {
         categoriesArray.push({
           id: name.toLowerCase().replace(/\s+/g, '-'),
-          num: `0${index + 1}`,
+          num: `0${categoriesArray.length + 1}`,
           name: name,
           tagline: `Explore our ${name.toLowerCase()} collection`,
           products: categoryProducts,
         });
-      });
-    }
+      }
+    });
 
     setCategories(categoriesArray);
   };

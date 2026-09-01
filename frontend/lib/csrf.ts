@@ -1,53 +1,72 @@
 import crypto from 'crypto';
 
-// Store active CSRF tokens (in production, use Redis)
-const csrfTokens: { [key: string]: { token: string; expiresAt: number } } = {};
+// Secret used to sign stateless CSRF tokens across serverless lambda instances
+const CSRF_SECRET =
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.NEXTAUTH_SECRET ||
+  'roast-co-csrf-secret-key-salt-2026';
+
+const CSRF_EXPIRY_MS = 30 * 60 * 1000; // 30 minutes
 
 /**
- * Generate a new CSRF token
+ * Generate a new stateless HMAC-signed CSRF token
+ * Format: <randomHex>.<timestamp>.<hmacSignature>
  */
 export function generateCSRFToken(): string {
-  const token = crypto.randomBytes(32).toString('hex');
-  const expiresAt = Date.now() + 30 * 60 * 1000; // 30 minutes
+  const randomHex = crypto.randomBytes(16).toString('hex');
+  const timestamp = Date.now().toString();
+  const payload = `${randomHex}.${timestamp}`;
+  const signature = crypto
+    .createHmac('sha256', CSRF_SECRET)
+    .update(payload)
+    .digest('hex');
 
-  csrfTokens[token] = { token, expiresAt };
-
-  // Cleanup expired tokens
-  cleanupExpiredTokens();
-
-  return token;
+  return `${payload}.${signature}`;
 }
 
 /**
- * Verify CSRF token
+ * Verify stateless HMAC-signed CSRF token
  */
 export function verifyCSRFToken(token: string): boolean {
-  if (!token || !csrfTokens[token]) {
+  if (!token || typeof token !== 'string') {
     return false;
   }
 
-  const { expiresAt } = csrfTokens[token];
-  if (Date.now() > expiresAt) {
-    delete csrfTokens[token];
+  const parts = token.split('.');
+  if (parts.length !== 3) {
     return false;
   }
 
-  // Consume token (can only be used once)
-  delete csrfTokens[token];
-  return true;
-}
+  const [randomHex, timestampStr, signature] = parts;
+  const timestamp = parseInt(timestampStr, 10);
 
-/**
- * Cleanup expired tokens every 10 minutes
- */
-function cleanupExpiredTokens() {
-  const now = Date.now();
-  for (const token in csrfTokens) {
-    if (now > csrfTokens[token].expiresAt) {
-      delete csrfTokens[token];
+  if (isNaN(timestamp)) {
+    return false;
+  }
+
+  // Check if token expired (valid for 30 minutes)
+  const age = Date.now() - timestamp;
+  if (age < 0 || age > CSRF_EXPIRY_MS) {
+    return false;
+  }
+
+  const payload = `${randomHex}.${timestampStr}`;
+  const expectedSignature = crypto
+    .createHmac('sha256', CSRF_SECRET)
+    .update(payload)
+    .digest('hex');
+
+  try {
+    const signatureBuffer = Buffer.from(signature, 'hex');
+    const expectedBuffer = Buffer.from(expectedSignature, 'hex');
+
+    if (signatureBuffer.length !== expectedBuffer.length) {
+      return false;
     }
+
+    return crypto.timingSafeEqual(signatureBuffer, expectedBuffer);
+  } catch {
+    return false;
   }
 }
 
-// Run cleanup every 10 minutes
-setInterval(cleanupExpiredTokens, 10 * 60 * 1000);

@@ -29,7 +29,9 @@ export async function GET(request: NextRequest) {
       { products },
       {
         headers: {
-          'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=120',
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+          'Pragma': 'no-cache',
+          'Expires': '0',
           'X-Cache-Version': Date.now().toString(),
         }
       }
