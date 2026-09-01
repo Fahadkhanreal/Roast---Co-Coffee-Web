@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { clearAllCaches } from "@/lib/cache-manager";
 
 type Category = {
   id: number;
@@ -50,6 +51,7 @@ export function CategoriesView() {
         });
 
         if (response.ok) {
+          clearAllCaches();
           alert('Category updated successfully!');
           fetchCategories();
         } else {
@@ -65,6 +67,7 @@ export function CategoriesView() {
         });
 
         if (response.ok) {
+          clearAllCaches();
           alert('Category created successfully!');
           fetchCategories();
         } else {
@@ -89,6 +92,7 @@ export function CategoriesView() {
       });
 
       if (response.ok) {
+        clearAllCaches();
         alert('Category deleted successfully!');
         fetchCategories();
       } else {
@@ -110,6 +114,7 @@ export function CategoriesView() {
       });
 
       if (response.ok) {
+        clearAllCaches();
         alert(`Category ${!currentStatus ? 'activated' : 'hidden'} successfully!`);
         fetchCategories();
       } else {
@@ -131,6 +136,7 @@ export function CategoriesView() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ display_order: category.display_order - 1 }),
       });
+      clearAllCaches();
       fetchCategories();
     } catch (error) {
       console.error('Error moving category:', error);
@@ -144,6 +150,7 @@ export function CategoriesView() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ display_order: category.display_order + 1 }),
       });
+      clearAllCaches();
       fetchCategories();
     } catch (error) {
       console.error('Error moving category:', error);

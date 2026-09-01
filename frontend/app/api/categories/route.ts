@@ -19,7 +19,17 @@ export async function GET(request: NextRequest) {
 
     if (error) throw error;
 
-    return NextResponse.json({ categories: data || [] });
+    return NextResponse.json(
+      { categories: data || [] },
+      {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+          'X-Cache-Version': Date.now().toString(),
+        }
+      }
+    );
   } catch (error: any) {
     console.error('Error fetching categories:', error);
     return NextResponse.json(

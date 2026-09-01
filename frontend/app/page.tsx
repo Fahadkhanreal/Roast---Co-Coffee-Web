@@ -21,14 +21,32 @@ import { useScrollSpy } from "@/components/use-scroll-spy";
 
 // Map category names to art types for visual styling
 const categoryArtMap: { [key: string]: any } = {
-  'Coffee': 'espresso',
-  'Cappuccino': 'cappuccino',
-  'Latte': 'latte',
-  'Iced Coffee': 'iced',
-  'Shakes': 'shake',
-  'Desserts': 'dessert',
-  'Snacks': 'snack',
+  'coffee': 'espresso',
+  'americano': 'espresso',
+  'cappuccino': 'cappuccino',
+  'latte': 'latte',
+  'iced coffee': 'iced',
+  'iced': 'iced',
+  'mocktails': 'mocktail',
+  'mocktail': 'mocktail',
+  'tea': 'tea',
+  'shakes': 'shake',
+  'shake': 'shake',
+  'desserts': 'dessert',
+  'dessert': 'dessert',
+  'snacks': 'snack',
+  'snack': 'snack',
+  'combos': 'combo',
+  'combo': 'combo',
 };
+
+function getArtForCategory(categoryName: string): any {
+  const norm = (categoryName || '').toLowerCase().trim();
+  if (categoryArtMap[norm]) return categoryArtMap[norm];
+  const singular = norm.replace(/s$/, '');
+  if (categoryArtMap[singular]) return categoryArtMap[singular];
+  return 'espresso';
+}
 
 function Shop({ categories, loading }: { categories: Category[]; loading: boolean }) {
   const [active, setActive] = useScrollSpy(categories);
@@ -238,7 +256,7 @@ export default function Home() {
   useEffect(() => {
     fetchProducts();
 
-    // Re-fetch products when cache is cleared (e.g., product added in Admin)
+    // Re-fetch products when cache is cleared (e.g., product or category updated in Admin)
     const handleCacheCleared = () => {
       fetchProducts(true);
     };
@@ -299,67 +317,93 @@ export default function Home() {
   };
 
   const processProducts = async (products: any[]) => {
-    // Fetch categories from database to get proper ordering
-    let dbCategories: any[] = [];
+    let activeDbCategories: any[] = [];
+    const inactiveCategoryNames = new Set<string>();
+
     try {
       const catResponse = await fetch(`/api/categories?t=${Date.now()}`, {
         cache: 'no-store'
       });
       const catData = await catResponse.json();
-      if (catResponse.ok && catData.categories) {
-        // Filter only active categories and sort by display_order
-        dbCategories = catData.categories
-          .filter((c: any) => c.is_active)
-          .sort((a: any, b: any) => a.display_order - b.display_order);
+      if (catResponse.ok && Array.isArray(catData.categories)) {
+        catData.categories.forEach((c: any) => {
+          const normName = (c.name || '').toLowerCase().trim();
+          if (c.is_active === false) {
+            inactiveCategoryNames.add(normName);
+            // also handle plural/singular
+            inactiveCategoryNames.add(normName.replace(/s$/, ''));
+            inactiveCategoryNames.add(normName + 's');
+          } else {
+            activeDbCategories.push(c);
+          }
+        });
+
+        // Sort active categories by display_order
+        activeDbCategories.sort((a: any, b: any) => (a.display_order || 0) - (b.display_order || 0));
       }
     } catch (error) {
       console.error('Failed to fetch categories:', error);
     }
 
-    // Group products by category (case-insensitive lookup key)
-    const productsByCategory: { [key: string]: any[] } = {};
+    // Group products by normalized category
+    const productsByCategory: { [key: string]: { originalName: string; products: any[] } } = {};
 
     products.forEach((p: any) => {
-      // Show product if stock is not strictly 0 (defaults to in stock)
+      // Check stock
       const inStock = p.stock === undefined || p.stock === null || p.stock > 0;
-      if (inStock) {
-        const catName = p.category ? p.category.trim() : 'Other';
-        if (!productsByCategory[catName]) {
-          productsByCategory[catName] = [];
-        }
-        productsByCategory[catName].push({
-          id: p.id,
-          name: p.name,
-          description: p.description || `Delicious ${p.name}`,
-          price: parseFloat(p.price),
-          art: categoryArtMap[catName] || 'espresso',
-          badge: p.featured ? 'Popular' : undefined,
-          image: p.image,
-        });
+      if (!inStock) return;
+
+      const rawCatName = (p.category || 'Other').trim();
+      const normCatName = rawCatName.toLowerCase();
+
+      // If category is explicitly marked inactive in Admin, SKIP THIS PRODUCT!
+      if (inactiveCategoryNames.has(normCatName)) {
+        return;
       }
+
+      if (!productsByCategory[normCatName]) {
+        productsByCategory[normCatName] = {
+          originalName: rawCatName,
+          products: [],
+        };
+      }
+
+      productsByCategory[normCatName].products.push({
+        id: p.id,
+        name: p.name,
+        description: p.description || `Delicious ${p.name}`,
+        price: parseFloat(p.price),
+        art: getArtForCategory(rawCatName),
+        badge: p.featured ? 'Popular' : undefined,
+        image: p.image,
+      });
     });
 
-    // Build categories array using database order
     const categoriesArray: Category[] = [];
-    const usedCategoryNames = new Set<string>();
+    const consumedKeys = new Set<string>();
 
-    if (dbCategories.length > 0) {
-      // Use database categories with custom ordering
-      dbCategories.forEach((dbCat: any, index: number) => {
-        // Find matching products by name (case-insensitive match)
-        const matchingKey = Object.keys(productsByCategory).find(
-          (key) => key.toLowerCase() === dbCat.name.toLowerCase()
-        );
-        const categoryProducts = matchingKey ? productsByCategory[matchingKey] : [];
+    // 1. Process active database categories in order
+    if (activeDbCategories.length > 0) {
+      activeDbCategories.forEach((dbCat: any) => {
+        const dbCatNorm = (dbCat.name || '').toLowerCase().trim();
+        const dbCatSingular = dbCatNorm.replace(/s$/, '');
+        const dbCatPlural = dbCatNorm + 's';
 
-        if (matchingKey) {
-          usedCategoryNames.add(matchingKey);
-        }
+        let categoryProducts: any[] = [];
 
+        // Collect all products matching this active category
+        Object.keys(productsByCategory).forEach((key) => {
+          if (key === dbCatNorm || key === dbCatSingular || key === dbCatPlural) {
+            categoryProducts = [...categoryProducts, ...productsByCategory[key].products];
+            consumedKeys.add(key);
+          }
+        });
+
+        // Only add active category if it has products
         if (categoryProducts.length > 0) {
           categoriesArray.push({
-            id: dbCat.slug || dbCat.name.toLowerCase().replace(/\s+/g, '-'),
-            num: `0${categoriesArray.length + 1}`,
+            id: dbCat.slug || dbCatNorm.replace(/\s+/g, '-'),
+            num: String(categoriesArray.length + 1).padStart(2, '0'),
             name: dbCat.name,
             tagline: dbCat.description || `Explore our ${dbCat.name.toLowerCase()} collection`,
             products: categoryProducts,
@@ -368,15 +412,15 @@ export default function Home() {
       });
     }
 
-    // Append any products from categories not in dbCategories so they are NEVER lost
-    Object.entries(productsByCategory).forEach(([name, categoryProducts]) => {
-      if (!usedCategoryNames.has(name) && categoryProducts.length > 0) {
+    // 2. Append any unconsumed categories that were NOT marked inactive
+    Object.entries(productsByCategory).forEach(([key, group]) => {
+      if (!consumedKeys.has(key) && !inactiveCategoryNames.has(key) && group.products.length > 0) {
         categoriesArray.push({
-          id: name.toLowerCase().replace(/\s+/g, '-'),
-          num: `0${categoriesArray.length + 1}`,
-          name: name,
-          tagline: `Explore our ${name.toLowerCase()} collection`,
-          products: categoryProducts,
+          id: key.replace(/\s+/g, '-'),
+          num: String(categoriesArray.length + 1).padStart(2, '0'),
+          name: group.originalName,
+          tagline: `Explore our ${group.originalName.toLowerCase()} collection`,
+          products: group.products,
         });
       }
     });
